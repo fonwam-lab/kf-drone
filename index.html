@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KF โดรนเกษตร — ระบบจัดการคิวพ่นยา</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --forest-950:#0b2818;
+    --forest-900:#123524;
+    --forest-800:#164430;
+    --forest-700:#1b4332;
+    --green-600:#2d6a4f;
+    --green-500:#40916c;
+    --green-400:#52b788;
+    --mint-300:#95d5b2;
+    --mint-200:#b7e4c7;
+    --mint-100:#d8f3dc;
+    --cream:#f6fbf5;
+    --paper:#ffffff;
+    --gold-400:#f2c14e;
+    --amber-500:#e9a23b;
+    --rose-500:#e2634f;
+    --ink-900:#16241c;
+    --ink-600:#4a5f52;
+    --ink-400:#8ea495;
+    --line:#dcece1;
+    --shadow: 0 8px 24px -12px rgba(11,40,24,.25);
+    --radius:16px;
+    --pastel-1:#eefcf3;
+    --pastel-2:#e2f7e9;
+    --pastel-3:#d3f0e0;
+    --pastel-4:#c7ead9;
+    --pastel-mint:#bfe9dc;
+    --pastel-yellow:#fff2c2;
+    --pastel-peach:#ffe6d6;
+    --pastel-sky:#eaf7f2;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Sarabun',sans-serif;
+    background:
+      linear-gradient(155deg,var(--pastel-1) 0%, var(--pastel-2) 28%, var(--pastel-3) 55%, var(--pastel-4) 78%, var(--pastel-mint) 100%);
+    background-attachment:fixed;
+    color:var(--ink-900);
+    min-height:100vh;
+    position:relative;
+    overflow-x:hidden;
+  }
+  /* soft pastel color blobs for depth */
+  .bg-blob{position:fixed;border-radius:50%;filter:blur(70px);z-index:0;pointer-events:none;}
+  .bg-blob.b1{top:-120px;left:-100px;width:420px;height:420px;background:var(--pastel-yellow);opacity:.55;}
+  .bg-blob.b2{top:10%;right:-140px;width:380px;height:380px;background:var(--mint-300);opacity:.4;}
+  .bg-blob.b3{bottom:-160px;left:20%;width:520px;height:520px;background:var(--pastel-peach);opacity:.4;}
+  .bg-blob.b4{bottom:6%;right:8%;width:300px;height:300px;background:var(--pastel-sky);opacity:.6;}
+
+  /* watermark: paddy rows + drone flight path, subtle */
+  body::before{
+    content:"";
+    position:fixed;
+    inset:0;
+    z-index:0;
+    pointer-events:none;
+    opacity:.6;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'><g fill='none' stroke='%2374c69d' stroke-width='1.1' opacity='0.16'><path d='M0 20 Q55 0 110 20 T220 20'/><path d='M0 60 Q55 40 110 60 T220 60'/><path d='M0 100 Q55 80 110 100 T220 100'/><path d='M0 140 Q55 120 110 140 T220 140'/><path d='M0 180 Q55 160 110 180 T220 180'/></g><g fill='%23f2c14e' opacity='0.16'><circle cx='30' cy='20' r='1.6'/><circle cx='70' cy='60' r='1.6'/><circle cx='150' cy='100' r='1.6'/><circle cx='190' cy='140' r='1.6'/><circle cx='40' cy='180' r='1.6'/></g></svg>");
+    background-size:220px 220px;
+  }
+  .radar-mark{
+    position:fixed; top:-140px; right:-140px; width:420px;height:420px;
+    border-radius:50%;
+    border:1px solid rgba(64,145,108,.14);
+    z-index:0; pointer-events:none;
+  }
+  .radar-mark::before,.radar-mark::after{
+    content:"";position:absolute;inset:60px;border-radius:50%;border:1px solid rgba(64,145,108,.11);
+  }
+  .radar-mark::after{inset:120px;}
+
+  /* decorative pastel farmland scenery, bottom of viewport */
+  .scenery{
+    position:fixed;left:0;right:0;bottom:0;width:100%;height:38vh;
+    z-index:0;pointer-events:none;opacity:.85;
+  }
+  .scenery svg{width:100%;height:100%;display:block;}
+
+  .app{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:20px 20px 60px;}
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    display:flex;align-items:center;gap:16px;
+    background:linear-gradient(120deg,var(--forest-900),var(--forest-700) 60%,var(--green-600));
+    border-radius:20px;
+    padding:14px 18px;
+    box-shadow:var(--shadow);
+    flex-wrap:wrap;
+  }
+  .brand{display:flex;align-items:center;gap:12px;margin-right:auto;}
+  .brand-icon{width:44px;height:44px;flex:none;}
+  .brand-title{font-family:'Kanit',sans-serif;color:#fff;font-weight:600;font-size:19px;line-height:1.1;}
+  .brand-sub{color:var(--mint-200);font-size:12.5px;margin-top:2px;}
+  .tabs{display:flex;gap:6px;background:rgba(255,255,255,.08);padding:5px;border-radius:14px;flex-wrap:wrap;}
+  .tab{
+    font-family:'Kanit',sans-serif;
+    border:none;background:transparent;color:var(--mint-100);
+    padding:9px 14px;border-radius:10px;font-size:14px;cursor:pointer;
+    transition:.18s;white-space:nowrap;
+  }
+  .tab:hover{background:rgba(255,255,255,.1);}
+  .tab.active{background:var(--gold-400);color:var(--forest-900);font-weight:600;}
+  .icon-btn{
+    width:40px;height:40px;border-radius:12px;border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.08);color:#fff;font-size:17px;cursor:pointer;flex:none;
+  }
+  .icon-btn:hover{background:rgba(255,255,255,.18);}
+
+  /* ---------- Layout helpers ---------- */
+  .view{display:none;margin-top:22px;animation:fadeIn .25s ease;}
+  .view.active{display:block;}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+
+  .card{
+    background:var(--paper);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:var(--shadow);
+  }
+  .section-title{
+    font-family:'Kanit',sans-serif;font-weight:600;font-size:18px;color:var(--forest-800);
+    margin:0 0 14px;display:flex;align-items:center;gap:8px;
+  }
+  .section-title .dot{width:8px;height:8px;border-radius:50%;background:var(--green-500);}
+
+  /* ---------- Dashboard ---------- */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  .stat-card{
+    padding:18px;border-radius:var(--radius);color:#fff;position:relative;overflow:hidden;
+    box-shadow:var(--shadow);
+  }
+  .stat-card .label{font-size:12.5px;opacity:.85;}
+  .stat-card .value{font-family:'Kanit',sans-serif;font-size:30px;font-weight:600;margin-top:6px;}
+  .stat-card.c1{background:linear-gradient(135deg,var(--green-600),var(--green-400));}
+  .stat-card.c2{background:linear-gradient(135deg,#c98a2b,var(--amber-500));}
+  .stat-card.c3{background:linear-gradient(135deg,var(--forest-800),var(--forest-700));}
+  .stat-card.c4{background:linear-gradient(135deg,#b6472f,var(--rose-500));}
+
+  .dash-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-top:16px;}
+  .list-row{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    padding:12px 10px;border-bottom:1px dashed var(--line);font-size:14px;
+  }
+  .list-row:last-child{border-bottom:none;}
+  .badge{
+    font-family:'Kanit',sans-serif;font-size:11.5px;padding:3px 9px;border-radius:20px;font-weight:500;
+  }
+  .badge.vip{background:var(--gold-400);color:#5a3d00;}
+  .badge.regular{background:var(--mint-200);color:var(--forest-800);}
+  .badge.done{background:var(--mint-200);color:var(--forest-800);}
+  .badge.pending{background:#fdebd3;color:#8a5a12;}
+  .badge.paid{background:#d8f3dc;color:#1b4332;}
+  .badge.unpaid{background:#fbdad3;color:#9c3b23;}
+
+  /* ---------- Forms ---------- */
+  .form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px 18px;}
+  .field{display:flex;flex-direction:column;gap:6px;}
+  .field.full{grid-column:1/-1;}
+  label{font-size:13px;color:var(--ink-600);font-weight:600;}
+  input,select,textarea{
+    font-family:'Sarabun',sans-serif;
+    border:1.5px solid var(--line);
+    background:#fbfdfb;
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:14.5px;
+    color:var(--ink-900);
+    outline:none;
+    transition:.15s;
+  }
+  input:focus,select:focus,textarea:focus{border-color:var(--green-500);box-shadow:0 0 0 3px rgba(64,145,108,.15);}
+  textarea{resize:vertical;min-height:60px;}
+  .radio-row{display:flex;gap:10px;}
+  .radio-chip{
+    flex:1;text-align:center;padding:9px;border-radius:10px;border:1.5px solid var(--line);
+    cursor:pointer;font-size:14px;font-weight:500;color:var(--ink-600);transition:.15s;
+  }
+  .radio-chip input{display:none;}
+  .radio-chip.checked{border-color:var(--green-500);background:var(--mint-100);color:var(--forest-800);}
+
+  .btn{
+    font-family:'Kanit',sans-serif;
+    border:none;border-radius:12px;padding:11px 20px;font-size:14.5px;font-weight:500;
+    cursor:pointer;transition:.15s;display:inline-flex;align-items:center;gap:8px;
+  }
+  .btn-primary{background:linear-gradient(120deg,var(--green-600),var(--green-400));color:#fff;box-shadow:0 6px 16px -6px rgba(45,106,79,.55);}
+  .btn-primary:hover{filter:brightness(1.05);}
+  .btn-ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink-600);}
+  .btn-ghost:hover{border-color:var(--green-500);color:var(--forest-800);}
+  .btn-sm{padding:7px 12px;font-size:13px;border-radius:9px;}
+  .btn:disabled{opacity:.5;cursor:not-allowed;}
+
+  /* ---------- Table ---------- */
+  .filter-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center;justify-content:space-between;}
+  .chip-group{display:flex;gap:6px;}
+  .chip{
+    font-family:'Kanit',sans-serif;font-size:13px;padding:7px 14px;border-radius:20px;
+    border:1.5px solid var(--line);background:#fff;cursor:pointer;color:var(--ink-600);
+  }
+  .chip.active{background:var(--forest-800);border-color:var(--forest-800);color:#fff;}
+  table{width:100%;border-collapse:collapse;font-size:13.8px;}
+  thead th{
+    font-family:'Kanit',sans-serif;text-align:left;font-weight:500;color:var(--ink-600);
+    font-size:12.5px;text-transform:uppercase;letter-spacing:.03em;
+    padding:10px 12px;border-bottom:2px solid var(--line);background:var(--mint-100);
+  }
+  thead th:first-child{border-top-left-radius:10px;}
+  thead th:last-child{border-top-right-radius:10px;}
+  tbody td{padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tbody tr:hover{background:#f6fbf5;}
+  .empty-state{padding:40px 20px;text-align:center;color:var(--ink-400);}
+  .empty-state .big{font-size:38px;}
+
+  /* ---------- Unpaid ---------- */
+  .unpaid-sum{
+    display:flex;justify-content:space-between;align-items:center;
+    background:linear-gradient(120deg,#b6472f,var(--rose-500));color:#fff;border-radius:14px;
+    padding:16px 20px;margin-bottom:16px;
+  }
+  .unpaid-sum .amt{font-family:'Kanit',sans-serif;font-size:26px;font-weight:600;}
+
+  /* ---------- Modal ---------- */
+  .overlay{
+    position:fixed;inset:0;background:rgba(11,40,24,.45);backdrop-filter:blur(2px);
+    display:none;align-items:center;justify-content:center;z-index:50;padding:16px;
+  }
+  .overlay.show{display:flex;}
+  .modal{
+    background:#fff;border-radius:18px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;
+    box-shadow:0 30px 60px -20px rgba(11,40,24,.4);
+  }
+  .modal-head{
+    display:flex;justify-content:space-between;align-items:center;padding:18px 20px;
+    border-bottom:1px solid var(--line);position:sticky;top:0;background:#fff;border-radius:18px 18px 0 0;
+  }
+  .modal-head h3{font-family:'Kanit',sans-serif;margin:0;font-size:17px;color:var(--forest-800);}
+  .modal-body{padding:20px;}
+  .modal-foot{padding:16px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:10px;}
+  .x-close{background:none;border:none;font-size:20px;cursor:pointer;color:var(--ink-400);}
+  .calc-line{
+    display:flex;justify-content:space-between;background:var(--mint-100);border-radius:10px;
+    padding:10px 14px;font-family:'Kanit',sans-serif;color:var(--forest-800);font-weight:500;margin-top:4px;
+  }
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--forest-900);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;
+    box-shadow:var(--shadow);opacity:0;pointer-events:none;transition:.25s;z-index:100;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .setup-banner{
+    background:#fdebd3;border:1.5px dashed var(--amber-500);color:#7a4c0c;padding:14px 16px;
+    border-radius:14px;font-size:13.5px;margin-bottom:16px;display:flex;gap:10px;align-items:flex-start;
+  }
+
+  @media(max-width:760px){
+    .stat-grid{grid-template-columns:repeat(2,1fr);}
+    .dash-grid{grid-template-columns:1fr;}
+    .form-grid{grid-template-columns:1fr;}
+    .tabs{width:100%;justify-content:space-between;}
+    .tab{padding:8px 10px;font-size:12.5px;}
+    table{font-size:12.5px;}
+    thead th, tbody td{padding:8px;}
+  }
+</style>
+</head>
+<body>
+<div class="radar-mark"></div>
+<div class="bg-blob b1"></div>
+<div class="bg-blob b2"></div>
+<div class="bg-blob b3"></div>
+<div class="bg-blob b4"></div>
+<div class="scenery" aria-hidden="true">
+  <svg viewBox="0 0 1440 420" preserveAspectRatio="xMidYMax slice" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#fff2c2" stop-opacity="0.9"/>
+        <stop offset="100%" stop-color="#fff2c2" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <circle cx="1180" cy="70" r="130" fill="url(#sunGlow)"/>
+    <circle cx="1180" cy="70" r="42" fill="#fff2c2" opacity="0.85"/>
+
+    <!-- far hill -->
+    <path d="M0 260 Q180 210 380 250 T760 240 T1140 255 T1440 230 L1440 420 L0 420 Z" fill="#d3f0e0" opacity="0.85"/>
+    <!-- mid hill -->
+    <path d="M0 310 Q220 265 460 300 T900 290 T1440 300 L1440 420 L0 420 Z" fill="#bfe9dc" opacity="0.9"/>
+    <!-- near hill / paddy field -->
+    <path d="M0 360 Q240 325 500 350 T980 345 T1440 355 L1440 420 L0 420 Z" fill="#a8dfc7"/>
+
+    <!-- paddy rows on near field -->
+    <g stroke="#8fd1b3" stroke-width="2" opacity="0.55" fill="none">
+      <path d="M-20 375 Q360 350 740 375 T1460 370"/>
+      <path d="M-20 390 Q360 365 740 390 T1460 385"/>
+      <path d="M-20 405 Q360 380 740 405 T1460 400"/>
+    </g>
+
+    <!-- little drone with spray mist over the field -->
+    <g transform="translate(300,175)">
+      <ellipse cx="0" cy="46" rx="30" ry="9" fill="#c7ead9" opacity="0.6"/>
+      <line x1="-18" y1="-10" x2="-30" y2="-20" stroke="#5aab86" stroke-width="2" stroke-linecap="round"/>
+      <line x1="18" y1="-10" x2="30" y2="-20" stroke="#5aab86" stroke-width="2" stroke-linecap="round"/>
+      <line x1="-18" y1="8" x2="-30" y2="18" stroke="#5aab86" stroke-width="2" stroke-linecap="round"/>
+      <line x1="18" y1="8" x2="30" y2="18" stroke="#5aab86" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="-30" cy="-20" r="5" fill="#f2c14e"/><circle cx="30" cy="-20" r="5" fill="#f2c14e"/>
+      <circle cx="-30" cy="18" r="5" fill="#f2c14e"/><circle cx="30" cy="18" r="5" fill="#f2c14e"/>
+      <rect x="-16" y="-10" width="32" height="20" rx="7" fill="#fdfefb"/>
+      <path d="M-10 12 L-16 34 M0 12 L0 36 M10 12 L16 34" stroke="#bfe9dc" stroke-width="2" stroke-linecap="round"/>
+    </g>
+  </svg>
+</div>
+<div class="app">
+
+  <!-- ================= TOPBAR ================= -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="brand-icon" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" fill="rgba(255,255,255,.08)"/>
+        <g stroke="#F2C14E" stroke-width="2.4" stroke-linecap="round">
+          <line x1="20" y1="20" x2="14" y2="14"/><line x1="44" y1="20" x2="50" y2="14"/>
+          <line x1="20" y1="34" x2="14" y2="40"/><line x1="44" y1="34" x2="50" y2="40"/>
+        </g>
+        <circle cx="14" cy="14" r="4.2" fill="#95D5B2"/><circle cx="50" cy="14" r="4.2" fill="#95D5B2"/>
+        <circle cx="14" cy="40" r="4.2" fill="#95D5B2"/><circle cx="50" cy="40" r="4.2" fill="#95D5B2"/>
+        <rect x="22" y="21" width="20" height="14" rx="5" fill="#F6FBF5"/>
+        <path d="M27 35 L23 47 M32 35 L32 48 M37 35 L41 47" stroke="#95D5B2" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+      <div>
+        <div class="brand-title">KF โดรนเกษตร</div>
+        <div class="brand-sub">ระบบจัดการคิวพ่นยา</div>
+      </div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">ภาพรวม</button>
+      <button class="tab" data-tab="record">บันทึกคิวพ่นยา</button>
+      <button class="tab" data-tab="queue">ตารางคิวงาน</button>
+      <button class="tab" data-tab="unpaid">ค้างชำระเงิน</button>
+    </nav>
+    <button class="icon-btn" id="settingsBtn" title="ตั้งค่าการเชื่อมต่อ Google Sheet">⚙</button>
+  </header>
+
+  <div id="setupBanner" class="setup-banner" style="display:none;">
+    <span>⚠️</span>
+    <div>ยังไม่ได้เชื่อมต่อ Google Sheet — กดปุ่ม ⚙ มุมบนขวา เพื่อวาง URL ของ Google Apps Script Web App ก่อนเริ่มบันทึกข้อมูล</div>
+  </div>
+
+  <!-- ================= DASHBOARD ================= -->
+  <section class="view active" id="view-dashboard">
+    <div class="stat-grid">
+      <div class="stat-card c1"><div class="label">งานทั้งหมด</div><div class="value" id="statTotal">0</div></div>
+      <div class="stat-card c2"><div class="label">ค้างพ่น</div><div class="value" id="statPending">0</div></div>
+      <div class="stat-card c3"><div class="label">พ่นแล้ว</div><div class="value" id="statDone">0</div></div>
+      <div class="stat-card c4"><div class="label">ยอดค้างชำระ (บาท)</div><div class="value" id="statUnpaid">0</div></div>
+    </div>
+
+    <div class="dash-grid">
+      <div class="card" style="padding:18px;">
+        <div class="section-title"><span class="dot"></span>คิวงานล่าสุด</div>
+        <div id="recentList"></div>
+      </div>
+      <div class="card" style="padding:18px;">
+        <div class="section-title"><span class="dot"></span>สรุปตามชนิดพืช</div>
+        <div id="cropSummary"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= RECORD FORM ================= -->
+  <section class="view" id="view-record">
+    <div class="card" style="padding:22px;">
+      <div class="section-title"><span class="dot"></span>บันทึกคิวพ่นยา</div>
+      <form id="recordForm">
+        <div class="form-grid">
+          <div class="field">
+            <label>วันที่ต้องการพ่น</label>
+            <input type="date" id="f_date" required>
+          </div>
+          <div class="field">
+            <label>ชื่อลูกค้า</label>
+            <input type="text" id="f_name" placeholder="ชื่อ-นามสกุล" required>
+          </div>
+          <div class="field">
+            <label>ประเภทลูกค้า</label>
+            <div class="radio-row" id="f_type">
+              <label class="radio-chip checked"><input type="radio" name="ctype" value="ทั่วไป" checked>ทั่วไป</label>
+              <label class="radio-chip"><input type="radio" name="ctype" value="VIP">VIP</label>
+            </div>
+          </div>
+          <div class="field">
+            <label>เบอร์โทรศัพท์</label>
+            <input type="tel" id="f_phone" placeholder="08x-xxx-xxxx" required>
+          </div>
+          <div class="field">
+            <label>ชนิดพืช</label>
+            <select id="f_crop">
+              <option>ข้าวโพด</option><option>ข้าว</option><option>หญ้า</option>
+              <option>หอมแดง</option><option>กระเทียม</option><option>อื่นๆ</option>
+            </select>
+          </div>
+          <div class="field" id="f_cropOtherWrap" style="display:none;">
+            <label>ระบุชนิดพืช (อื่นๆ)</label>
+            <input type="text" id="f_cropOther" placeholder="ระบุชนิดพืช">
+          </div>
+          <div class="field">
+            <label>จำนวน (ไร่)</label>
+            <input type="number" id="f_area" step="0.1" min="0" placeholder="0.0" required>
+          </div>
+          <div class="field">
+            <label>สถานที่</label>
+            <input type="text" id="f_location" placeholder="ตำบล/อำเภอ/พิกัด" required>
+          </div>
+          <div class="field full">
+            <label>หมายเหตุ</label>
+            <textarea id="f_note" placeholder="รายละเอียดเพิ่มเติม เช่น เส้นทางเข้าแปลง, สารที่ต้องการพ่น"></textarea>
+          </div>
+        </div>
+        <div style="margin-top:18px;display:flex;gap:10px;">
+          <button type="submit" class="btn btn-primary" id="submitBtn">✚ บันทึกคิวพ่นยา</button>
+          <button type="reset" class="btn btn-ghost">ล้างฟอร์ม</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ================= QUEUE TABLE ================= -->
+  <section class="view" id="view-queue">
+    <div class="card" style="padding:22px;">
+      <div class="filter-row">
+        <div class="section-title" style="margin:0;"><span class="dot"></span>ตารางคิวงาน</div>
+        <div class="chip-group" id="queueFilter">
+          <button class="chip active" data-f="all">ทั้งหมด</button>
+          <button class="chip" data-f="ค้างพ่น">ค้างพ่น</button>
+          <button class="chip" data-f="พ่นแล้ว">พ่นแล้ว</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="refreshQueueBtn">⟳ รีเฟรช</button>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>ว/ด/ป</th><th>ลูกค้า / เบอร์โทร</th><th>ข้อมูลงาน</th><th>สถานะ</th><th>ชำระเงิน</th><th></th>
+          </tr></thead>
+          <tbody id="queueTbody"></tbody>
+        </table>
+        <div class="empty-state" id="queueEmpty" style="display:none;">
+          <div class="big">🌾</div>ยังไม่มีคิวงานในหมวดนี้
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= UNPAID ================= -->
+  <section class="view" id="view-unpaid">
+    <div class="unpaid-sum">
+      <div>ยอดค้างชำระทั้งหมด</div>
+      <div class="amt" id="unpaidTotal">0 บาท</div>
+    </div>
+    <div class="card" style="padding:22px;">
+      <div class="section-title"><span class="dot"></span>รายการค้างชำระเงิน</div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead><tr>
+            <th>ชื่อลูกค้า</th><th>วันที่พ่น</th><th>จำนวนไร่ / สถานที่</th><th>ราคารวม</th><th>สถานะ</th><th></th>
+          </tr></thead>
+          <tbody id="unpaidTbody"></tbody>
+        </table>
+        <div class="empty-state" id="unpaidEmpty" style="display:none;">
+          <div class="big">✅</div>ไม่มีรายการค้างชำระเงิน
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- ================= JOB MODAL ================= -->
+<div class="overlay" id="jobOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>จัดการคิวงาน / ชำระเงิน</h3>
+      <button class="x-close" id="jobClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field full" style="margin-bottom:14px;">
+        <label id="jobCustomerLabel" style="font-size:14px;color:var(--ink-900);"></label>
+      </div>
+      <div class="form-grid">
+        <div class="field">
+          <label>สถานะงาน</label>
+          <select id="m_status">
+            <option value="ค้างพ่น">ค้างพ่น</option>
+            <option value="พ่นแล้ว">พ่นแล้ว</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>จำนวน (ไร่)</label>
+          <input type="number" id="m_area" step="0.1" min="0">
+        </div>
+        <div class="field">
+          <label>ราคา/ไร่ (บาท)</label>
+          <input type="number" id="m_price" step="1" min="0">
+        </div>
+        <div class="field">
+          <label>ชื่อผู้พ่น</label>
+          <input type="text" id="m_pilot" placeholder="ชื่อผู้ควบคุมโดรน">
+        </div>
+        <div class="field full">
+          <label>การชำระเงิน</label>
+          <select id="m_paymethod">
+            <option value="ค้างชำระเงิน">ค้างชำระเงิน</option>
+            <option value="เงินสด">เงินสด</option>
+            <option value="โอน">โอน</option>
+          </select>
+        </div>
+      </div>
+      <div class="calc-line"><span>รวมราคา</span><span id="m_total">0 บาท</span></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="jobCancel">ยกเลิก</button>
+      <button class="btn btn-primary" id="jobSave">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= SETTINGS MODAL ================= -->
+<div class="overlay" id="settingsOverlay">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>ตั้งค่าการเชื่อมต่อ Google Sheet</h3>
+      <button class="x-close" id="settingsClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field full">
+        <label>Web App URL (จาก Google Apps Script)</label>
+        <input type="text" id="s_url" placeholder="https://script.google.com/macros/s/xxxxx/exec">
+      </div>
+      <p style="font-size:13px;color:var(--ink-600);line-height:1.6;margin-top:10px;">
+        นำโค้ด Google Apps Script ที่แนบให้ไปวางใน Google Sheet ของคุณ (Extensions → Apps Script)
+        แล้ว Deploy เป็น Web App (Execute as: Me, Who has access: Anyone) จากนั้นคัดลอก URL มาวางที่นี่
+      </p>
+      <div id="connStatus" style="margin-top:10px;font-size:13.5px;"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="testConnBtn">ทดสอบการเชื่อมต่อ</button>
+      <button class="btn btn-primary" id="settingsSave">💾 บันทึกการตั้งค่า</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+  const $ = (s,el=document)=>el.querySelector(s);
+  const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
+
+  const DEFAULT_API_URL = 'https://script.google.com/macros/s/AKfycbzwLMD4mnffiojU4QLu1xWo_uE3aCCo0ViA1fsREmTf6A0BtW0pttwvyj6frVDlHAegyg/exec';
+  const CONFIG_VERSION = 'v2';
+  let API_URL = '';
+  let ROWS = [];
+  let activeJobId = null;
+
+  const toastEl = $('#toast');
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    setTimeout(()=>toastEl.classList.remove('show'), 2400);
+  }
+
+  function money(n){
+    n = Number(n)||0;
+    return n.toLocaleString('th-TH',{maximumFractionDigits:0}) + ' บาท';
+  }
+
+  // ---------- Storage for API URL (personal) ----------
+  async function loadApiUrl(){
+    let storedVer = null;
+    try{
+      const v = await window.storage.get('kf_config_version');
+      storedVer = v && v.value;
+    }catch(e){ storedVer = null; }
+
+    if(storedVer !== CONFIG_VERSION){
+      API_URL = DEFAULT_API_URL;
+      try{ await window.storage.set('kf_api_url', API_URL); }catch(e){}
+      try{ await window.storage.set('kf_config_version', CONFIG_VERSION); }catch(e){}
+    }else{
+      try{
+        const r = await window.storage.get('kf_api_url');
+        API_URL = (r && r.value) || DEFAULT_API_URL;
+      }catch(e){ API_URL = DEFAULT_API_URL; }
+    }
+    $('#s_url').value = API_URL;
+    $('#setupBanner').style.display = API_URL ? 'none' : 'flex';
+  }
+  async function saveApiUrl(url){
+    API_URL = url.trim();
+    try{ await window.storage.set('kf_api_url', API_URL); }catch(e){}
+    $('#setupBanner').style.display = API_URL ? 'none' : 'flex';
+  }
+
+  // ---------- Tabs ----------
+  $$('.tab').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      $$('.tab').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      $$('.view').forEach(v=>v.classList.remove('active'));
+      $('#view-'+btn.dataset.tab).classList.add('active');
+      if(btn.dataset.tab==='queue' || btn.dataset.tab==='dashboard' || btn.dataset.tab==='unpaid'){
+        renderAll();
+      }
+    });
+  });
+
+  // ---------- Record form UI ----------
+  $$('#f_type .radio-chip').forEach(chip=>{
+    chip.addEventListener('click', ()=>{
+      $$('#f_type .radio-chip').forEach(c=>c.classList.remove('checked'));
+      chip.classList.add('checked');
+    });
+  });
+  $('#f_crop').addEventListener('change', e=>{
+    $('#f_cropOtherWrap').style.display = e.target.value==='อื่นๆ' ? 'flex' : 'none';
+  });
+
+  // ---------- API (JSONP — avoids CORS issues with Apps Script) ----------
+  let jsonpCounter = 0;
+  function jsonpRequest(params){
+    return new Promise((resolve, reject)=>{
+      const cbName = 'kf_cb_' + (jsonpCounter++) + '_' + Date.now();
+      const script = document.createElement('script');
+      const timeout = setTimeout(()=>{ cleanup(); reject(new Error('หมดเวลาเชื่อมต่อ (timeout) — ตรวจสอบ URL หรือการ Deploy')); }, 15000);
+      function cleanup(){
+        clearTimeout(timeout);
+        try{ delete window[cbName]; }catch(e){ window[cbName]=undefined; }
+        script.remove();
+      }
+      window[cbName] = (data)=>{ cleanup(); resolve(data); };
+      script.onerror = ()=>{ cleanup(); reject(new Error('โหลดสคริปต์ไม่สำเร็จ — ตรวจสอบว่า URL ถูกต้องและ Deploy เป็น Anyone แล้ว')); };
+      const qs = new URLSearchParams(params);
+      qs.set('callback', cbName);
+      script.src = API_URL + '?' + qs.toString();
+      document.body.appendChild(script);
+    });
+  }
+
+  async function apiList(){
+    if(!API_URL){ return []; }
+    const data = await jsonpRequest({ action:'list', _: Date.now() });
+    if(data && data.error){
+      console.error('KF app: server returned error', data.error);
+      throw new Error(data.error);
+    }
+    return (data && data.rows) || [];
+  }
+  async function apiPost(payload){
+    if(!API_URL){ toast('กรุณาตั้งค่า Google Sheet ก่อน (ปุ่ม ⚙)'); throw new Error('no api url'); }
+    const data = await jsonpRequest({
+      action: payload.action,
+      data: JSON.stringify(payload.data || {})
+    });
+    if(data && data.error){
+      console.error('KF app: server returned error', data.error);
+      throw new Error(data.error);
+    }
+    return data;
+  }
+
+  async function refresh(){
+    if(!API_URL) { ROWS=[]; renderAll(); return; }
+    try{
+      ROWS = await apiList();
+      $('#setupBanner').style.display = 'none';
+    }catch(e){
+      console.error('KF app: refresh failed', e);
+      toast('เชื่อมต่อ Google Sheet ไม่สำเร็จ');
+      $('#setupBanner').innerHTML = '<span>⚠️</span><div>โหลดข้อมูลจาก Google Sheet ไม่สำเร็จ: <b>' + esc(e.message||e) + '</b><br>เปิด Console (F12) เพื่อดูรายละเอียด หรือกด ⟳ รีเฟรช อีกครั้ง</div>';
+      $('#setupBanner').style.display = 'flex';
+      ROWS = [];
+    }
+    renderAll();
+  }
+
+  // ---------- Record submit ----------
+  $('#recordForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    if(!API_URL){ toast('กรุณาตั้งค่า Google Sheet ก่อน (ปุ่ม ⚙)'); $('#settingsOverlay').classList.add('show'); return; }
+    const crop = $('#f_crop').value === 'อื่นๆ' ? ($('#f_cropOther').value || 'อื่นๆ') : $('#f_crop').value;
+    const ctype = $('#f_type input[name=ctype]:checked').value;
+    const data = {
+      'วันที่พ่น': $('#f_date').value,
+      'ชื่อลูกค้า': $('#f_name').value,
+      'ประเภทลูกค้า': ctype,
+      'เบอร์โทร': $('#f_phone').value,
+      'ชนิดพืช': crop,
+      'จำนวนไร่': $('#f_area').value,
+      'สถานที่': $('#f_location').value,
+      'หมายเหตุ': $('#f_note').value,
+      'สถานะงาน':'ค้างพ่น',
+      'สถานะชำระเงิน':'ค้างชำระเงิน'
+    };
+    const btn = $('#submitBtn');
+    btn.disabled = true; btn.textContent = 'กำลังบันทึก...';
+    try{
+      await apiPost({action:'add', data});
+      toast('บันทึกคิวพ่นยาเรียบร้อย');
+      e.target.reset();
+      $$('#f_type .radio-chip').forEach((c,i)=>c.classList.toggle('checked', i===0));
+      $('#f_cropOtherWrap').style.display='none';
+      await refresh();
+    }catch(err){
+      toast('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
+    }finally{
+      btn.disabled = false; btn.textContent = '✚ บันทึกคิวพ่นยา';
+    }
+  });
+
+  // ---------- Rendering ----------
+  function renderAll(){
+    renderDashboard();
+    renderQueue();
+    renderUnpaid();
+  }
+
+  function renderDashboard(){
+    const total = ROWS.length;
+    const pending = ROWS.filter(r=>r['สถานะงาน']!=='พ่นแล้ว').length;
+    const done = ROWS.filter(r=>r['สถานะงาน']==='พ่นแล้ว').length;
+    const unpaidSum = ROWS.filter(r=>r['สถานะชำระเงิน']==='ค้างชำระ'||r['สถานะชำระเงิน']==='ค้างชำระเงิน')
+      .reduce((s,r)=>s+(Number(r['รวมราคา'])||0),0);
+    $('#statTotal').textContent = total;
+    $('#statPending').textContent = pending;
+    $('#statDone').textContent = done;
+    $('#statUnpaid').textContent = unpaidSum.toLocaleString('th-TH',{maximumFractionDigits:0});
+
+    const recent = [...ROWS].sort((a,b)=> new Date(b['Timestamp']||0) - new Date(a['Timestamp']||0)).slice(0,6);
+    const list = $('#recentList');
+    if(recent.length===0){
+      list.innerHTML = '<div class="empty-state"><div class="big">🚁</div>ยังไม่มีคิวงาน</div>';
+    }else{
+      list.innerHTML = recent.map(r=>`
+        <div class="list-row">
+          <div>
+            <div style="font-weight:600;">${esc(r['ชื่อลูกค้า']||'-')} <span class="badge ${r['ประเภทลูกค้า']==='VIP'?'vip':'regular'}">${esc(r['ประเภทลูกค้า']||'ทั่วไป')}</span></div>
+            <div style="color:var(--ink-400);font-size:12.5px;margin-top:2px;">${esc(r['ชนิดพืช']||'')} · ${esc(r['จำนวนไร่']||'')} ไร่ · ${esc(r['วันที่พ่น']||'')}</div>
+          </div>
+          <span class="badge ${r['สถานะงาน']==='พ่นแล้ว'?'done':'pending'}">${esc(r['สถานะงาน']||'ค้างพ่น')}</span>
+        </div>`).join('');
+    }
+
+    const cropCounts = {};
+    ROWS.forEach(r=>{ const c=r['ชนิดพืช']||'อื่นๆ'; cropCounts[c]=(cropCounts[c]||0)+(Number(r['จำนวนไร่'])||0); });
+    const cropEl = $('#cropSummary');
+    const entries = Object.entries(cropCounts).sort((a,b)=>b[1]-a[1]);
+    if(entries.length===0){
+      cropEl.innerHTML = '<div class="empty-state"><div class="big">🌱</div>ยังไม่มีข้อมูล</div>';
+    }else{
+      const max = Math.max(...entries.map(e=>e[1]),1);
+      cropEl.innerHTML = entries.map(([crop,area])=>`
+        <div style="margin-bottom:10px;">
+          <div style="display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:4px;">
+            <span>${esc(crop)}</span><span style="color:var(--ink-400);">${area.toFixed(1)} ไร่</span>
+          </div>
+          <div style="background:var(--mint-100);border-radius:8px;height:8px;overflow:hidden;">
+            <div style="width:${(area/max*100).toFixed(0)}%;height:100%;background:linear-gradient(90deg,var(--green-600),var(--green-400));"></div>
+          </div>
+        </div>`).join('');
+    }
+  }
+
+  let queueFilter = 'all';
+  $('#queueFilter').addEventListener('click', e=>{
+    const btn = e.target.closest('.chip'); if(!btn) return;
+    $$('#queueFilter .chip').forEach(c=>c.classList.remove('active'));
+    btn.classList.add('active');
+    queueFilter = btn.dataset.f;
+    renderQueue();
+  });
+  $('#refreshQueueBtn').addEventListener('click', refresh);
+
+  function renderQueue(){
+    let rows = [...ROWS].sort((a,b)=> new Date(a['วันที่พ่น']||0) - new Date(b['วันที่พ่น']||0));
+    if(queueFilter!=='all') rows = rows.filter(r=>(r['สถานะงาน']||'ค้างพ่น')===queueFilter);
+    const tbody = $('#queueTbody');
+    $('#queueEmpty').style.display = rows.length? 'none':'block';
+    tbody.innerHTML = rows.map(r=>`
+      <tr>
+        <td>${esc(r['วันที่พ่น']||'-')}</td>
+        <td><div style="font-weight:600;">${esc(r['ชื่อลูกค้า']||'-')} <span class="badge ${r['ประเภทลูกค้า']==='VIP'?'vip':'regular'}">${esc(r['ประเภทลูกค้า']||'')}</span></div><div style="color:var(--ink-400);font-size:12.5px;">${esc(r['เบอร์โทร']||'')}</div></td>
+        <td>${esc(r['ชนิดพืช']||'')} · ${esc(r['จำนวนไร่']||'')} ไร่<br><span style="color:var(--ink-400);font-size:12.5px;">${esc(r['สถานที่']||'')}</span></td>
+        <td><span class="badge ${r['สถานะงาน']==='พ่นแล้ว'?'done':'pending'}">${esc(r['สถานะงาน']||'ค้างพ่น')}</span></td>
+        <td><span class="badge ${(r['สถานะชำระเงิน']==='ชำระแล้ว')?'paid':'unpaid'}">${esc(r['สถานะชำระเงิน']||'ค้างชำระเงิน')}</span></td>
+        <td><button class="btn btn-ghost btn-sm" data-id="${esc(r['ID'])}">จัดการ</button></td>
+      </tr>`).join('');
+    tbody.querySelectorAll('button[data-id]').forEach(b=>{
+      b.addEventListener('click', ()=> openJobModal(b.dataset.id));
+    });
+  }
+
+  function renderUnpaid(){
+    const rows = ROWS.filter(r=> (r['สถานะชำระเงิน']||'ค้างชำระเงิน') !== 'ชำระแล้ว');
+    const total = rows.reduce((s,r)=>s+(Number(r['รวมราคา'])||0),0);
+    $('#unpaidTotal').textContent = money(total);
+    const tbody = $('#unpaidTbody');
+    $('#unpaidEmpty').style.display = rows.length? 'none':'block';
+    tbody.innerHTML = rows.map(r=>`
+      <tr>
+        <td style="font-weight:600;">${esc(r['ชื่อลูกค้า']||'-')}</td>
+        <td>${esc(r['วันที่พ่น']||'-')}</td>
+        <td>${esc(r['จำนวนไร่']||'-')} ไร่ · ${esc(r['สถานที่']||'')}</td>
+        <td style="font-weight:600;">${money(r['รวมราคา'])}</td>
+        <td><span class="badge unpaid">ค้างชำระ</span></td>
+        <td><button class="btn btn-primary btn-sm" data-id="${esc(r['ID'])}">รับชำระเงิน</button></td>
+      </tr>`).join('');
+    tbody.querySelectorAll('button[data-id]').forEach(b=>{
+      b.addEventListener('click', ()=> openJobModal(b.dataset.id));
+    });
+  }
+
+  function esc(s){
+    return String(s===undefined||s===null?'':s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+  }
+
+  // ---------- Job Modal ----------
+  function openJobModal(id){
+    const row = ROWS.find(r=>String(r['ID'])===String(id));
+    if(!row) return;
+    activeJobId = id;
+    $('#jobCustomerLabel').textContent = `${row['ชื่อลูกค้า']||''} · ${row['เบอร์โทร']||''} · ${row['วันที่พ่น']||''}`;
+    $('#m_status').value = row['สถานะงาน'] || 'ค้างพ่น';
+    $('#m_area').value = row['จำนวนไร่'] || '';
+    $('#m_price').value = row['ราคาต่อไร่'] || '';
+    $('#m_pilot').value = row['ชื่อผู้พ่น'] || '';
+    $('#m_paymethod').value = row['วิธีชำระเงิน'] || 'ค้างชำระเงิน';
+    updateCalc();
+    $('#jobOverlay').classList.add('show');
+  }
+  function closeJobModal(){ $('#jobOverlay').classList.remove('show'); activeJobId=null; }
+  $('#jobClose').addEventListener('click', closeJobModal);
+  $('#jobCancel').addEventListener('click', closeJobModal);
+  $('#jobOverlay').addEventListener('click', e=>{ if(e.target.id==='jobOverlay') closeJobModal(); });
+
+  function updateCalc(){
+    const area = Number($('#m_area').value)||0;
+    const price = Number($('#m_price').value)||0;
+    $('#m_total').textContent = money(area*price);
+  }
+  $('#m_area').addEventListener('input', updateCalc);
+  $('#m_price').addEventListener('input', updateCalc);
+
+  $('#jobSave').addEventListener('click', async ()=>{
+    if(!activeJobId) return;
+    const area = Number($('#m_area').value)||0;
+    const price = Number($('#m_price').value)||0;
+    const total = area*price;
+    const method = $('#m_paymethod').value;
+    const payStatus = method==='ค้างชำระเงิน' ? 'ค้างชำระเงิน' : 'ชำระแล้ว';
+    const btn = $('#jobSave');
+    btn.disabled = true; btn.textContent='กำลังบันทึก...';
+    try{
+      await apiPost({action:'update', data:{
+        id: activeJobId,
+        'สถานะงาน': $('#m_status').value,
+        'จำนวนไร่': area,
+        'ราคาต่อไร่': price,
+        'รวมราคา': total,
+        'ชื่อผู้พ่น': $('#m_pilot').value,
+        'วิธีชำระเงิน': method,
+        'สถานะชำระเงิน': payStatus
+      }});
+      toast('บันทึกข้อมูลเรียบร้อย');
+      closeJobModal();
+      await refresh();
+    }catch(e){
+      toast('เกิดข้อผิดพลาด ลองใหม่อีกครั้ง');
+    }finally{
+      btn.disabled=false; btn.textContent='💾 บันทึก';
+    }
+  });
+
+  // ---------- Settings Modal ----------
+  $('#settingsBtn').addEventListener('click', ()=> $('#settingsOverlay').classList.add('show'));
+  $('#settingsClose').addEventListener('click', ()=> $('#settingsOverlay').classList.remove('show'));
+  $('#settingsOverlay').addEventListener('click', e=>{ if(e.target.id==='settingsOverlay') $('#settingsOverlay').classList.remove('show'); });
+
+  $('#settingsSave').addEventListener('click', async ()=>{
+    await saveApiUrl($('#s_url').value);
+    toast('บันทึกการตั้งค่าแล้ว');
+    $('#settingsOverlay').classList.remove('show');
+    refresh();
+  });
+
+  $('#testConnBtn').addEventListener('click', async ()=>{
+    const url = $('#s_url').value.trim();
+    const statusEl = $('#connStatus');
+    statusEl.textContent = 'กำลังทดสอบ...';
+    statusEl.style.color = 'var(--ink-600)';
+    const savedUrl = API_URL;
+    API_URL = url;
+    try{
+      const data = await jsonpRequest({ action:'list', _: Date.now() });
+      if(data && data.error) throw new Error(data.error);
+      statusEl.textContent = `✅ เชื่อมต่อสำเร็จ พบข้อมูล ${(data.rows||[]).length} รายการ`;
+      statusEl.style.color = 'var(--green-600)';
+    }catch(e){
+      console.error('KF app: test connection failed', e);
+      statusEl.textContent = '❌ เชื่อมต่อไม่สำเร็จ: ' + (e.message||e);
+      statusEl.style.color = 'var(--rose-500)';
+    }finally{
+      API_URL = savedUrl;
+    }
+  });
+
+  // ---------- Init ----------
+  (async function init(){
+    // default date = today
+    $('#f_date').value = new Date().toISOString().slice(0,10);
+    await loadApiUrl();
+    await refresh();
+  })();
+})();
+</script>
+</body>
+</html>
